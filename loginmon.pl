@@ -5,12 +5,8 @@
 loginmon.pl - A windows service which records who is logged in
 
 =cut
-use threads;
-use threads::shared;
-
 
 use Win32::Daemon;
-use Data::Dumper;
 use POSIX qw(strftime);
 use Win32::OLE('in');
 use Socket;
@@ -73,7 +69,7 @@ if($#ARGV>=1){
 open(STDERR,">$cfg->{home}\\log\\".strftime("%Y%m%d-%H%M",localtime).".err.log");
 open(STDOUT,">$cfg->{home}\\log\\".strftime("%Y%m%d-%H%M",localtime).".out.log");
 
-my %session :shared = (
+my %session = (
 	username=>"",
 	start_time=>time(), # TODO check this is UTC not local time. Certainly looks like it...
 	end_time=>time(),
