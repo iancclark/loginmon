@@ -1,0 +1,12 @@
+---
+home: c:\path\to\script\folder
+db:
+  driver: Pg
+  name: database_name
+  host: database.host
+  sslmode: require
+  user: db_username
+  pass: db_password
+timeout: 30000
+# If using MRBS this should match an existing room id
+room_id: 9
