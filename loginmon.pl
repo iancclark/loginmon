@@ -163,6 +163,10 @@ sub cbRunning {
 			$context->{sqlite}->do("UPDATE sessions SET end_time=? WHERE id=?",undef,$session{'end_time'},$session{'id'});
 			$context->{sqlite}->commit();
 		}
+		if($context->{last_sync} < (time() - 3600*12)) {
+			&syncdb;
+			$context->{last_sync}=time();
+		}
 	}
 	Win32::Daemon::State(SERVICE_RUNNING);
 }
@@ -174,6 +178,7 @@ sub cbStart {
 	logerr("Started");
 	&dbCon($context);
 	&syncdb;
+	$context->{last_sync}=time();
 	&wmiCon($context);
 	Win32::Daemon::State(SERVICE_RUNNING);
 }
