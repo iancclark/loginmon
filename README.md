@@ -1,6 +1,8 @@
 # loginmon
 
-Perl service to monitor Win32 logins
+Perl service to monitor and record Win32 logins.
+
+Saves to local sqlite db and can synchronise with remote database (currently targetting PostgreSQL hosted [MRBS](http://mrbs.sourceforge.net/) db.)
 
 # Requirements
 
