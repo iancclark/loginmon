@@ -20,3 +20,5 @@ nytprof.out
 /_eumm/
 *.yaml
 *.sqlite
+.*.swp
+*~
