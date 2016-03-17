@@ -131,6 +131,7 @@ sub cbRunning {
 	if(SERVICE_RUNNING == Win32::Daemon::State()) {
 		my $user;
 		my $machine;
+		my $midnight=&local_midnight();
 		my $info=$context->{wmi}->ExecQuery("SELECT * FROM Win32_ComputerSystem","WQL", 0x10 || 0x20) or die "WMI Query failed $!" ; # 0x10 return immed, 0x20 forward only
 		foreach my $item (in $info) {
 			if(defined($item->{Username})) {
@@ -140,8 +141,8 @@ sub cbRunning {
 			}
 			$machine = $item->{Name};
 		}
-		if($session{'username'} ne $user) {
-			# Change of user
+		if($session{'username'} ne $user or $midnight==1) {
+			# Change of user/day
 			logerr("Session ($session{'id'}) for $session{'username'} from $session{'start_time'} to $session{'end_time'} ended");
 			# mark session as ready to sync
 			$context->{sqlite}->do("UPDATE sessions SET end_time=?, sent=0 WHERE id=?",undef,$session{'end_time'},$session{'id'});
@@ -163,9 +164,8 @@ sub cbRunning {
 			$context->{sqlite}->do("UPDATE sessions SET end_time=? WHERE id=?",undef,$session{'end_time'},$session{'id'});
 			$context->{sqlite}->commit();
 		}
-		if($context->{last_sync} < (time() - 3600*12)) {
-			&syncdb;
-			$context->{last_sync}=time();
+		if($midnight==1) {
+			&syncdb();
 		}
 	}
 	Win32::Daemon::State(SERVICE_RUNNING);
@@ -178,7 +178,6 @@ sub cbStart {
 	logerr("Started");
 	&dbCon($context);
 	&syncdb;
-	$context->{last_sync}=time();
 	&wmiCon($context);
 	Win32::Daemon::State(SERVICE_RUNNING);
 }
@@ -315,3 +314,12 @@ sub syncdb {
 	&logerr("Finished a sync");
 }
 
+sub local_midnight {
+	# MRBS doesn't really like sessions that pass midnight
+	# and we want to keep the system in sync at points other than
+	# just at start up, so let's kill two birds with one stone.
+	my($sec,undef,$hour,undef,undef,undef,undef,undef,undef) = localtime(time());
+	if($sec <= $cfg->{timeout}/1000 and $hour==0) {
+		return 1;
+	}
+}
