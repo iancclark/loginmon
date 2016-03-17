@@ -296,7 +296,7 @@ sub syncdb {
 
 			}
 			# insert
-			if(!$sql->do("INSERT INTO mrbs_entry (start_time,end_time,room_id,create_by,modified_by,name,type,description,ical_uid) VALUES (?,?,?,?,?,?,?,?,'MRBS-'||SUBSTRING(MD5(CAST(RANDOM() AS varchar(255))) FROM 1 FOR 20)||'\@websvc')",undef,$start,$end,$cfg->{room_id},$username,"loginmon",$username,'E','Used') ) { 
+			if(!$sql->do("INSERT INTO mrbs_entry (start_time,end_time,room_id,create_by,modified_by,name,type,description,ical_uid) VALUES (?,?,?,?,?,?,?,?,'MRBS-'||SUBSTRING(MD5(CAST(RANDOM() AS varchar(255))) FROM 1 FOR 20)||'\@websvc')",undef,$start,$end,$cfg->{room_id},$username,"loginmon","Used by $username",'E','Used') ) { 
 				print LOG "Insert failed $? $sql->errstr giving up" ;
 			       	return;
 		       	};
