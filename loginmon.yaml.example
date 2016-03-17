@@ -10,3 +10,4 @@ db:
 timeout: 30000
 # If using MRBS this should match an existing room id
 room_id: 9
+sync_interval: 3600

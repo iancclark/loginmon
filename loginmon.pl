@@ -164,8 +164,9 @@ sub cbRunning {
 			$context->{sqlite}->do("UPDATE sessions SET end_time=? WHERE id=?",undef,$session{'end_time'},$session{'id'});
 			$context->{sqlite}->commit();
 		}
-		if($midnight==1) {
+		if(time()-$context->{last_sync} > $cfg->{sync_interval}){
 			&syncdb();
+			$context->{last_sync}=time();
 		}
 	}
 	Win32::Daemon::State(SERVICE_RUNNING);
@@ -178,6 +179,7 @@ sub cbStart {
 	logerr("Started");
 	&dbCon($context);
 	&syncdb;
+	$context->{last_sync}=time();
 	&wmiCon($context);
 	Win32::Daemon::State(SERVICE_RUNNING);
 }
@@ -316,8 +318,6 @@ sub syncdb {
 
 sub local_midnight {
 	# MRBS doesn't really like sessions that pass midnight
-	# and we want to keep the system in sync at points other than
-	# just at start up, so let's kill two birds with one stone.
 	my($sec,undef,$hour,undef,undef,undef,undef,undef,undef) = localtime(time());
 	if($sec <= $cfg->{timeout}/1000 and $hour==0) {
 		return 1;
