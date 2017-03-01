@@ -7,6 +7,8 @@ db:
   sslmode: require
   user: db_username
   pass: db_password
-timeout: 30000
+timeout: 30
 # If using MRBS this should match an existing room id
 room_id: 9
+split_every: 12
+sync_every: 1

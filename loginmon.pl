@@ -14,8 +14,8 @@ use DBI;
 use Pod::Usage;
 use Date::Parse;
 use Cwd qw/abs_path/;
-
 use YAML;
+use strict;
 
 =head1 SYNOPSIS
 
@@ -89,8 +89,8 @@ Win32::Daemon::RegisterCallbacks( {
 		continue => \&cbContinue,
 		timer => \&cbRunning,});
 
-
-Win32::Daemon::StartService(\%context,$cfg->{timeout});
+# Needs milliseconds
+Win32::Daemon::StartService(\%context,$cfg->{timeout}*1000);
 
 sub uninstall {
 	if(Win32::Daemon::DeleteService('','loginmon')) {
@@ -113,10 +113,9 @@ sub install {
 		path=>$svcpath,
 		user=>'',
 		pwd=>'',
-		description=>'This service records who is logged in every minute (or timeout configured in config)',
+		description=>'This service records who is logged in every 30s (or timeout configured in config)',
 		parameters=>$svcparm,
 		dependencies=>"winmgmt");
-	#print Dumper(%h);
 	if(Win32::Daemon::CreateService(\%h)) {
 		print "Service added\n";
 	} else {
@@ -140,8 +139,8 @@ sub cbRunning {
 			}
 			$machine = $item->{Name};
 		}
-		if($session{'username'} ne $user) {
-			# Change of user
+		if($session{'username'} ne $user or 1==&split_every()) {
+			# Change of user/day
 			logerr("Session ($session{'id'}) for $session{'username'} from $session{'start_time'} to $session{'end_time'} ended");
 			# mark session as ready to sync
 			$context->{sqlite}->do("UPDATE sessions SET end_time=?, sent=0 WHERE id=?",undef,$session{'end_time'},$session{'id'});
@@ -163,9 +162,8 @@ sub cbRunning {
 			$context->{sqlite}->do("UPDATE sessions SET end_time=? WHERE id=?",undef,$session{'end_time'},$session{'id'});
 			$context->{sqlite}->commit();
 		}
-		if($context->{last_sync} < (time() - 3600*12)) {
-			&syncdb;
-			$context->{last_sync}=time();
+		if(1==&sync_every()){
+			&syncdb();
 		}
 	}
 	Win32::Daemon::State(SERVICE_RUNNING);
@@ -178,7 +176,6 @@ sub cbStart {
 	logerr("Started");
 	&dbCon($context);
 	&syncdb;
-	$context->{last_sync}=time();
 	&wmiCon($context);
 	Win32::Daemon::State(SERVICE_RUNNING);
 }
@@ -239,18 +236,22 @@ sub syncdb {
 	&logerr("Starting a sync");
 	open(LOG,">$cfg->{home}\\log\\sync_".strftime("%Y%m%d-%H%M",localtime).".log");
 	print LOG "Attempting sync\n";
-	# connect to local db
-	my $sqlite=DBI->connect("dbi:SQLite:dbname=$cfg->{home}\\loginmon.sqlite","","",{AutoCommit=>0,RaiseError=>1}) or die "sqlite error";
-
-	# find all unsynced entries, round start/end times to 15min (900s) intervals
-	my $sessions=$sqlite->selectall_hashref("SELECT *,start_time+450-(start_time+450)%900 AS st, end_time+450-(end_time+450)%900 as et FROM sessions WHERE sent=0","id");
 
 	# attempt to connect to remote database
 	my $sql=DBI->connect("dbi:$cfg->{remotedb}->{driver}:host=$cfg->{remotedb}->{host};dbname=$cfg->{remotedb}->{name};sslmode=$cfg->{remotedb}->{sslmode}",$cfg->{remotedb}->{user},$cfg->{remotedb}->{pass});
+	if(!defined($sql)) {
+		&logerr("DB connect failed $DBI::errstr");
+		return;
+	}
 	if(!$sql->ping) {
 		print LOG "Remote db connection error ". $sql->errstr. ", aborting sync\n";
 		return;
 	}
+
+	# connect to local db
+	my $sqlite=DBI->connect("dbi:SQLite:dbname=$cfg->{home}\\loginmon.sqlite","","",{AutoCommit=>0,RaiseError=>1}) or die "sqlite error";
+	# find all unsynced entries, round start/end times to 15min (900s) intervals
+	my $sessions=$sqlite->selectall_hashref("SELECT *,start_time+450-(start_time+450)%900 AS st, end_time+450-(end_time+450)%900 as et FROM sessions WHERE sent=0","id");
 
 	# Check each local entry
 	foreach my $s (sort keys %$sessions) {
@@ -315,3 +316,20 @@ sub syncdb {
 	&logerr("Finished a sync");
 }
 
+sub split_every {
+	# MRBS doesn't really like sessions that pass midnight
+	my($sec,$min,$hour) = (localtime(time()))[0,1,2];
+	if($sec <= $cfg->{timeout} and ($hour % $cfg->{split_every})==0 and $min==0) {
+		&logerr("Splitting!");
+		return 1;
+	}
+	return 0;
+}
+
+sub sync_every {
+	my($sec,$min,$hour) = (localtime(time()))[0,1,2];
+	if($sec <= $cfg->{timeout} and ($hour % $cfg->{sync_every})==0 and $min==0) {
+		return 1;
+	}
+	return 0;
+}
