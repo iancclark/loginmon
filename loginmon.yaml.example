@@ -12,3 +12,4 @@ timeout: 30
 room_id: 9
 split_every: 12
 sync_every: 1
+sync_at_start: 1
