@@ -175,7 +175,9 @@ sub cbStart {
 	$context->{last_state}=SERVICE_RUNNING;
 	logerr("Started");
 	&dbCon($context);
-	&syncdb;
+	if($cfg->{sync_at_start}==1) {
+		&syncdb;
+	}
 	&wmiCon($context);
 	Win32::Daemon::State(SERVICE_RUNNING);
 }
